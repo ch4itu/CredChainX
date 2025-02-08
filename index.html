@@ -10,15 +10,19 @@
     label { display: block; margin-top: 10px; }
     input, textarea, select, button { width: 100%; padding: 8px; margin-top: 4px; }
     button { margin-top: 10px; }
-    #qrCode, #video { margin-top: 20px; }
+    #qrCode { margin-top: 20px; }
     /* Hide the verification result page initially */
     #verificationResultPage { display: none; }
+    /* Container for the live QR scanner */
+    #qr-reader { width: 300px; margin-top: 20px; display: none; }
   </style>
   <!-- Include dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
-  <!-- Include ZXing library for QR scanning -->
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <!-- html5-qrcode library for camera scanning -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- jsQR library for file scanning -->
+  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 </head>
 <body>
   <div class="container">
@@ -59,7 +63,9 @@
     <div id="verificationSection" class="section">
       <h2>Verify Credential</h2>
       <button id="startScan">Start Camera QR Code Scan</button>
-      <br><br>
+      <!-- Container for the live QR scanner -->
+      <div id="qr-reader"></div>
+      <br>
       <label for="qrUpload">Or upload a QR Code image:</label>
       <input type="file" id="qrUpload" accept="image/*">
     </div>
@@ -75,14 +81,10 @@
   
   <script>
     // ----- Configuration -----
-    // The destination address is set to the dead address.
-    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD";
-    // Polygon RPC endpoint.
-    const rpcEndpoint = "https://polygon-rpc.com";
+    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address
+    const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
 
     // ----- Utility Functions -----
-
-    // Compute SHA-256 hash using the Web Crypto API.
     async function computeSHA256(message) {
       const encoder = new TextEncoder();
       const data = encoder.encode(message);
@@ -91,7 +93,6 @@
       return "0x" + hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
     }
 
-    // Compress image to under targetKB (in kilobytes) and return a Base64 string.
     function compressImage(file, targetKB, callback) {
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -127,7 +128,10 @@
                 const reader2 = new FileReader();
                 reader2.onloadend = function() { callback(reader2.result); };
                 reader2.readAsDataURL(blob);
-              } else { quality -= 0.1; tryCompress(); }
+              } else {
+                quality -= 0.1;
+                tryCompress();
+              }
             }, "image/jpeg", quality);
           }
           tryCompress();
@@ -155,36 +159,25 @@
         return;
       }
 
-      // Compress the image to under 2 KB.
       compressImage(photoFile, 2, async function(photoBase64) {
         if (!photoBase64) {
           document.getElementById("issuanceStatus").innerText = "Error compressing image.";
           return;
         }
 
-        // Prepare JSON data.
         const dataObject = { name, dob, semester, subjects, marks, photo: photoBase64 };
         const jsonData = JSON.stringify(dataObject);
-
-        // Compute SHA-256 hash of the JSON data.
         const dataHash = await computeSHA256(jsonData);
         console.log("Computed Data Hash:", dataHash);
 
         try {
-          // Create a wallet from the mnemonic.
           const wallet = ethers.Wallet.fromMnemonic(mnemonic);
-          // The authorized address is derived from the mnemonic.
           const authorizedAddress = wallet.address;
           console.log("Authorized Address:", authorizedAddress);
-
-          // Connect the wallet to the provider.
           const provider = new ethers.providers.JsonRpcProvider(rpcEndpoint);
           const signer = wallet.connect(provider);
-
-          // Build the transaction object.
           const txObj = { to: DESTINATION_ADDRESS, value: 0, data: dataHash, from: authorizedAddress };
 
-          // Try to estimate gas.
           let estimatedGas;
           try {
             estimatedGas = await provider.estimateGas(txObj);
@@ -194,12 +187,10 @@
             estimatedGas = ethers.BigNumber.from("200000");
           }
 
-          // Retrieve current gas price and boost it by 20%.
           const currentGasPrice = await provider.getGasPrice();
           const boostedGasPrice = currentGasPrice.mul(120).div(100);
           console.log("Boosted Gas Price:", boostedGasPrice.toString());
 
-          // Send a legacy (type 0) transaction with the boosted gas price.
           const tx = await signer.sendTransaction({
             ...txObj,
             type: 0,
@@ -209,21 +200,17 @@
 
           document.getElementById("issuanceStatus").innerText = "Transaction sent. Waiting for confirmation...";
           console.log("Transaction sent:", tx.hash);
-
-          // Wait for transaction confirmation.
           const receipt = await tx.wait();
           console.log("Transaction confirmed:", receipt.transactionHash);
           document.getElementById("issuanceStatus").innerText = "Credential issued. Transaction ID: " + receipt.transactionHash;
 
-          // Generate a QR code that embeds the issuer, JSON data, and transaction ID.
           const qrData = { issuer: authorizedAddress, data: dataObject, txId: receipt.transactionHash };
-          // Updated QRious options: setting error correction level to "L" and adding padding.
           const qr = new QRious({
             element: document.createElement("canvas"),
             value: JSON.stringify(qrData),
             size: 400,
-            level: "L",       // Lower error correction level for a less dense QR code
-            padding: 10       // Add padding to improve scannability
+            level: "L",
+            padding: 10
           });
           const qrDiv = document.getElementById("qrCode");
           qrDiv.innerHTML = "";
@@ -236,20 +223,14 @@
     });
 
     // ----- Verification Logic -----
-    // Function to process a decoded QR code (from camera scan or file upload)
     async function processDecodedQrCode(decodedText) {
       try {
-        // Expected JSON object with properties: issuer, data, and txId.
         const qrData = JSON.parse(decodedText);
         const scannedData = JSON.stringify(qrData.data);
         const scannedTxId = qrData.txId;
         const expectedIssuer = qrData.issuer;
-
-        // Compute the hash of the scanned JSON data.
         const computedHash = await computeSHA256(scannedData);
         console.log("Computed Hash from Scanned Data:", computedHash);
-
-        // Retrieve the transaction from the blockchain.
         const provider = new ethers.providers.JsonRpcProvider(rpcEndpoint);
         const tx = await provider.getTransaction(scannedTxId);
         if (!tx) {
@@ -257,8 +238,6 @@
           return;
         }
         console.log("Retrieved Transaction:", tx);
-
-        // Verify that the transaction originates from the expected issuer.
         let verificationMessage = "";
         if (tx.from.toLowerCase() !== expectedIssuer.toLowerCase()) {
           verificationMessage = "Verification Failed: Transaction not from the expected issuer.";
@@ -267,7 +246,6 @@
         } else {
           verificationMessage = "Verification Successful: Data is authentic.";
         }
-        // Display the scanned credential data along with verification result.
         showVerificationResult(verificationMessage, qrData.data);
       } catch (error) {
         console.error("Error during verification:", error);
@@ -275,7 +253,6 @@
       }
     }
 
-    // Function to display verification result on a separate page (within the same HTML)
     function showVerificationResult(message, credentialData) {
       let dataHtml = "";
       if (credentialData) {
@@ -293,27 +270,44 @@
       document.getElementById("verificationResultPage").style.display = "block";
     }
 
-    // QR Code scanning via camera using ZXing.
+    // ----- QR Code Scanning with html5-qrcode (Camera) -----
+    let html5QrCode;
     document.getElementById("startScan").addEventListener("click", function() {
-      const codeReader = new ZXing.BrowserMultiFormatReader();
-      codeReader.listVideoInputDevices()
-        .then(videoInputDevices => {
-          const firstDeviceId = videoInputDevices[0].deviceId;
-          codeReader.decodeFromVideoDevice(firstDeviceId, "video", (result, err) => {
-            if (result) {
-              console.log("Camera scan result:", result.getText());
-              codeReader.reset();
-              processDecodedQrCode(result.getText());
+      const qrReader = document.getElementById("qr-reader");
+      qrReader.style.display = "block";
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          let cameraIdOrConfig = (devices[0].id && devices[0].id.trim() !== "")
+            ? devices[0].id
+            : { facingMode: "environment" };
+          html5QrCode = new Html5Qrcode("qr-reader");
+          html5QrCode.start(
+            cameraIdOrConfig,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText, decodedResult) => {
+              console.log("Camera scan result:", decodedText);
+              html5QrCode.stop().then(() => {
+                qrReader.style.display = "none";
+                processDecodedQrCode(decodedText);
+              }).catch(err => {
+                console.error("Failed to stop scanning.", err);
+              });
+            },
+            errorMessage => {
+              console.warn("QR scanning error:", errorMessage);
             }
-            if (err && !(err instanceof ZXing.NotFoundException)) {
-              console.error(err);
-            }
+          ).catch(err => {
+            console.error("Unable to start scanning.", err);
           });
-        })
-        .catch(err => console.error(err));
+        } else {
+          console.error("No cameras found.");
+        }
+      }).catch(err => {
+        console.error("Error getting cameras:", err);
+      });
     });
 
-    // QR Code decoding from an uploaded image using ZXing.
+    // ----- File Scanning using jsQR -----
     document.getElementById("qrUpload").addEventListener("change", function(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -321,40 +315,31 @@
       reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
-          const codeReader = new ZXing.BrowserMultiFormatReader();
-          codeReader.decodeFromImage(img)
-            .then(result => {
-              console.log("File scan result:", result.getText());
-              processDecodedQrCode(result.getText());
-            })
-            .catch(err => {
-              console.error("Error decoding QR code from file:", err);
-              document.getElementById("verificationResult").innerText = "QR Code not detected in the uploaded image.";
-            });
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const context = canvas.getContext("2d");
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, canvas.width, canvas.height);
+          if (code) {
+            console.log("File scan result:", code.data);
+            processDecodedQrCode(code.data);
+          } else {
+            console.error("QR code not detected in the uploaded image.");
+          }
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     });
 
-    // "Back to Scan" button functionality to return to scanning page.
+    // "Back to Scan" button functionality.
     document.getElementById("backToScan").addEventListener("click", function() {
       document.getElementById("verificationResultPage").style.display = "none";
       document.getElementById("verificationSection").style.display = "block";
-      document.getElementById("verificationResult").innerText = "";
     });
   </script>
   
-  <!-- Video element for camera scanning (used by ZXing) -->
-  <video id="video" style="width:300px; display: none;"></video>
-  
-  <!-- Hidden div for verification result display -->
-  <div id="verificationResultPage" class="section" style="display: none;">
-    <h2>Verification Result</h2>
-    <div id="credentialDisplay"></div>
-    <div id="verificationMessage" style="font-weight: bold; margin-top: 10px;"></div>
-    <button id="backToScan">Back to Scan</button>
-  </div>
 </body>
 </html>
-
