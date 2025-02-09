@@ -33,7 +33,8 @@
       <h2>Issue Credential</h2>
       <form id="issueForm">
         <label for="mnemonic">Issuer Wallet Mnemonic (Authorized Issuer Only):</label>
-        <input type="text" id="mnemonic" required placeholder="Enter your wallet mnemonic">
+        <!-- Changed input type to "password" to mask the mnemonic on entry -->
+        <input type="password" id="mnemonic" required placeholder="Enter your wallet mnemonic">
         
         <label for="name">Name:</label>
         <input type="text" id="name" required>
@@ -80,10 +81,6 @@
   </div>
   
   <script>
-    // ----- Configuration -----
-    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address
-    const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
-
     // ----- Utility Functions -----
     async function computeSHA256(message) {
       const encoder = new TextEncoder();
@@ -141,6 +138,20 @@
       reader.readAsDataURL(file);
     }
 
+    // Function to mask the mnemonic by showing only the first and last character of each word.
+    function maskMnemonic(mnemonic) {
+      return mnemonic.split(" ").map(word => {
+        if (word.length > 2) {
+          return word[0] + "*".repeat(word.length - 2) + word[word.length - 1];
+        }
+        return word;
+      }).join(" ");
+    }
+
+    // ----- Configuration -----
+    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address
+    const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
+
     // ----- Issuance Logic -----
     document.getElementById("issueForm").addEventListener("submit", async function(event) {
       event.preventDefault();
@@ -148,6 +159,8 @@
 
       // Collect form data.
       const mnemonic = document.getElementById("mnemonic").value.trim();
+      // Log the masked mnemonic for debugging purposes.
+      console.log("Masked mnemonic:", maskMnemonic(mnemonic));
       const name = document.getElementById("name").value.trim();
       const dob = document.getElementById("dob").value;
       const semester = document.getElementById("semester").value.trim();
@@ -238,6 +251,9 @@
           return;
         }
         console.log("Retrieved Transaction:", tx);
+        // Retrieve block details to get the transaction timestamp.
+        const block = await provider.getBlock(tx.blockNumber);
+        const txDateTime = new Date(block.timestamp * 1000).toLocaleString();
         let verificationMessage = "";
         if (tx.from.toLowerCase() !== expectedIssuer.toLowerCase()) {
           verificationMessage = "Verification Failed: Transaction not from the expected issuer.";
@@ -246,14 +262,15 @@
         } else {
           verificationMessage = "Verification Successful: Data is authentic.";
         }
-        showVerificationResult(verificationMessage, qrData.data);
+        // Pass the transaction ID and date/time to the result display.
+        showVerificationResult(verificationMessage, qrData.data, scannedTxId, txDateTime);
       } catch (error) {
         console.error("Error during verification:", error);
         showVerificationResult("Error: " + error.message, null);
       }
     }
 
-    function showVerificationResult(message, credentialData) {
+    function showVerificationResult(message, credentialData, txId, txDateTime) {
       let dataHtml = "";
       if (credentialData) {
         dataHtml += "<h3>Credential Data</h3>";
@@ -263,6 +280,10 @@
         dataHtml += `<p><strong>Subjects:</strong> ${credentialData.subjects.join(", ")}</p>`;
         dataHtml += `<p><strong>Marks:</strong> ${credentialData.marks.join(", ")}</p>`;
         dataHtml += `<p><strong>Photo:</strong><br><img src="${credentialData.photo}" alt="Credential Photo" style="max-width:300px;"></p>`;
+        if (txId && txDateTime) {
+          dataHtml += `<p><strong>Transaction:</strong> <a href="https://polygonscan.com/tx/${txId}" target="_blank">${txId}</a></p>`;
+          dataHtml += `<p><strong>Transaction Date & Time:</strong> ${txDateTime}</p>`;
+        }
       }
       document.getElementById("credentialDisplay").innerHTML = dataHtml;
       document.getElementById("verificationMessage").innerText = message;
