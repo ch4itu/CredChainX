@@ -270,6 +270,7 @@
       }
     }
 
+    // The showVerificationResult function now also sets the text color based on the message.
     function showVerificationResult(message, credentialData, txId, txDateTime) {
       let dataHtml = "";
       if (credentialData) {
@@ -286,7 +287,18 @@
         }
       }
       document.getElementById("credentialDisplay").innerHTML = dataHtml;
-      document.getElementById("verificationMessage").innerText = message;
+      
+      const verificationMessageElem = document.getElementById("verificationMessage");
+      verificationMessageElem.innerText = message;
+      // Set the text color based on the verification message.
+      if (message.toLowerCase().includes("successful")) {
+        verificationMessageElem.style.color = "green";
+      } else if (message.toLowerCase().includes("failed")) {
+        verificationMessageElem.style.color = "red";
+      } else {
+        verificationMessageElem.style.color = "blue";
+      }
+      
       document.getElementById("verificationSection").style.display = "none";
       document.getElementById("verificationResultPage").style.display = "block";
     }
