@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>CredChain - Credential Issuance & Verification</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; }
     .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
@@ -13,7 +14,7 @@
     #qrCode { margin-top: 20px; }
     /* Hide the verification result page initially */
     #verificationResultPage { display: none; }
-    /* Container for the live QR scanner */
+    /* The live QR scanner container */
     #qr-reader { width: 300px; margin-top: 20px; display: none; }
   </style>
   <!-- Include dependencies -->
@@ -33,7 +34,7 @@
       <h2>Issue Credential</h2>
       <form id="issueForm">
         <label for="mnemonic">Issuer Wallet Mnemonic (Authorized Issuer Only):</label>
-        <!-- Changed input type to "password" to mask the mnemonic on entry -->
+        <!-- Mask the mnemonic on entry -->
         <input type="password" id="mnemonic" required placeholder="Enter your wallet mnemonic">
         
         <label for="name">Name:</label>
@@ -138,7 +139,7 @@
       reader.readAsDataURL(file);
     }
 
-    // Function to mask the mnemonic by showing only the first and last character of each word.
+    // Mask the mnemonic by showing only the first and last character of each word.
     function maskMnemonic(mnemonic) {
       return mnemonic.split(" ").map(word => {
         if (word.length > 2) {
@@ -149,7 +150,7 @@
     }
 
     // ----- Configuration -----
-    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address
+    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address (example)
     const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
 
     // ----- Issuance Logic -----
@@ -159,7 +160,6 @@
 
       // Collect form data.
       const mnemonic = document.getElementById("mnemonic").value.trim();
-      // Log the masked mnemonic for debugging purposes.
       console.log("Masked mnemonic:", maskMnemonic(mnemonic));
       const name = document.getElementById("name").value.trim();
       const dob = document.getElementById("dob").value;
@@ -217,6 +217,7 @@
           console.log("Transaction confirmed:", receipt.transactionHash);
           document.getElementById("issuanceStatus").innerText = "Credential issued. Transaction ID: " + receipt.transactionHash;
 
+          // Generate a QR code with the credential data, issuer address, and transaction ID.
           const qrData = { issuer: authorizedAddress, data: dataObject, txId: receipt.transactionHash };
           const qr = new QRious({
             element: document.createElement("canvas"),
@@ -242,8 +243,10 @@
         const scannedData = JSON.stringify(qrData.data);
         const scannedTxId = qrData.txId;
         const expectedIssuer = qrData.issuer;
+
         const computedHash = await computeSHA256(scannedData);
         console.log("Computed Hash from Scanned Data:", computedHash);
+
         const provider = new ethers.providers.JsonRpcProvider(rpcEndpoint);
         const tx = await provider.getTransaction(scannedTxId);
         if (!tx) {
@@ -251,9 +254,9 @@
           return;
         }
         console.log("Retrieved Transaction:", tx);
-        // Retrieve block details to get the transaction timestamp.
         const block = await provider.getBlock(tx.blockNumber);
         const txDateTime = new Date(block.timestamp * 1000).toLocaleString();
+
         let verificationMessage = "";
         if (tx.from.toLowerCase() !== expectedIssuer.toLowerCase()) {
           verificationMessage = "Verification Failed: Transaction not from the expected issuer.";
@@ -262,7 +265,6 @@
         } else {
           verificationMessage = "Verification Successful: Data is authentic.";
         }
-        // Pass the transaction ID and date/time to the result display.
         showVerificationResult(verificationMessage, qrData.data, scannedTxId, txDateTime);
       } catch (error) {
         console.error("Error during verification:", error);
@@ -270,7 +272,6 @@
       }
     }
 
-    // The showVerificationResult function now also sets the text color based on the message.
     function showVerificationResult(message, credentialData, txId, txDateTime) {
       let dataHtml = "";
       if (credentialData) {
@@ -287,10 +288,9 @@
         }
       }
       document.getElementById("credentialDisplay").innerHTML = dataHtml;
-      
+
       const verificationMessageElem = document.getElementById("verificationMessage");
       verificationMessageElem.innerText = message;
-      // Set the text color based on the verification message.
       if (message.toLowerCase().includes("successful")) {
         verificationMessageElem.style.color = "green";
       } else if (message.toLowerCase().includes("failed")) {
@@ -298,7 +298,6 @@
       } else {
         verificationMessageElem.style.color = "blue";
       }
-      
       document.getElementById("verificationSection").style.display = "none";
       document.getElementById("verificationResultPage").style.display = "block";
     }
@@ -373,6 +372,5 @@
       document.getElementById("verificationSection").style.display = "block";
     });
   </script>
-  
 </body>
 </html>
