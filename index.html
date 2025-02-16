@@ -150,7 +150,7 @@
     }
 
     // ----- Configuration -----
-    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Destination address (example)
+    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Example destination address
     const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
 
     // ----- Issuance Logic -----
@@ -307,33 +307,34 @@
     document.getElementById("startScan").addEventListener("click", function() {
       const qrReader = document.getElementById("qr-reader");
       qrReader.style.display = "block";
+      // Get available cameras and try to pick the back camera
       Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-          let cameraIdOrConfig = (devices[0].id && devices[0].id.trim() !== "")
-            ? devices[0].id
-            : { facingMode: "environment" };
-          html5QrCode = new Html5Qrcode("qr-reader");
-          html5QrCode.start(
-            cameraIdOrConfig,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText, decodedResult) => {
-              console.log("Camera scan result:", decodedText);
-              html5QrCode.stop().then(() => {
-                qrReader.style.display = "none";
-                processDecodedQrCode(decodedText);
-              }).catch(err => {
-                console.error("Failed to stop scanning.", err);
-              });
-            },
-            errorMessage => {
-              console.warn("QR scanning error:", errorMessage);
-            }
-          ).catch(err => {
-            console.error("Unable to start scanning.", err);
-          });
-        } else {
-          console.error("No cameras found.");
-        }
+        let backCameraId = null;
+        devices.forEach(device => {
+          if (device.label.toLowerCase().includes("back") || device.label.toLowerCase().includes("rear")) {
+            backCameraId = device.id;
+          }
+        });
+        const cameraIdOrConfig = backCameraId ? backCameraId : { facingMode: "environment" };
+        html5QrCode = new Html5Qrcode("qr-reader");
+        html5QrCode.start(
+          cameraIdOrConfig,
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText, decodedResult) => {
+            console.log("Camera scan result:", decodedText);
+            html5QrCode.stop().then(() => {
+              qrReader.style.display = "none";
+              processDecodedQrCode(decodedText);
+            }).catch(err => {
+              console.error("Failed to stop scanning.", err);
+            });
+          },
+          errorMessage => {
+            console.warn("QR scanning error:", errorMessage);
+          }
+        ).catch(err => {
+          console.error("Unable to start scanning.", err);
+        });
       }).catch(err => {
         console.error("Error getting cameras:", err);
       });
