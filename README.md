@@ -1,6 +1,6 @@
-# CredChain
+# CredChainX
 
-CredChain is a blockchain-based credential issuance and verification system that leverages zero‑value transactions and QR codes—without the need for a smart contract—to securely store and verify credential data. Instead of using a smart contract, the SHA‑256 hash of the credential data is stored in the input data field of a 0‑value transaction sent from an authorized wallet to a designated destination address. Later, a QR code embedding both the original data and the transaction ID is scanned, and the system retrieves the transaction to verify that the data remains authentic and originates from the authorized issuer.
+CredChainX is a blockchain-based credential issuance and verification system that leverages zero‑value transactions and QR codes—without the need for a smart contract—to securely store and verify credential data. Instead of using a smart contract, the SHA‑256 hash of the credential data is stored in the input data field of a 0‑value transaction sent from an authorized wallet to a designated destination address. Later, a QR code embedding both the original data and the transaction ID is scanned, and the system retrieves the transaction to verify that the data remains authentic and originates from the authorized issuer.
 
 ## Features
 
@@ -32,5 +32,5 @@ CredChain is a blockchain-based credential issuance and verification system that
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/CredChain.git
-   cd CredChain
+   git clone https://github.com/yourusername/CredChainX.git
+   cd CredChainX
