@@ -302,32 +302,40 @@
       document.getElementById("verificationResultPage").style.display = "block";
     }
 
-    // ----- QR Code Scanning with html5-qrcode (Camera) -----
-    let html5QrCode;
+// ----- QR Code Scanning with html5-qrcode (Camera) -----
   document.getElementById("startScan").addEventListener("click", function() {
   const qrReader = document.getElementById("qr-reader");
   qrReader.style.display = "block";
 
-  html5QrCode = new Html5Qrcode("qr-reader");
-  
+  const html5QrCode = new Html5Qrcode("qr-reader");
+
+  const qrConfig = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    aspectRatio: 1.0
+  };
+
   html5QrCode.start(
-    { facingMode: "environment" }, // Explicitly request back camera
-    { fps: 10, qrbox: { width: 250, height: 250 } },
+    { facingMode: "environment" }, // Explicitly requests the rear camera
+    qrConfig,
     (decodedText, decodedResult) => {
-      console.log("Camera scan result:", decodedText);
+      console.log("QR Code detected:", decodedText);
       html5QrCode.stop().then(() => {
         qrReader.style.display = "none";
         processDecodedQrCode(decodedText);
-      }).catch(err => console.error("Error stopping scan:", err));
+      }).catch(err => {
+        console.error("Failed to stop scanning:", err);
+      });
     },
-    (errorMessage) => {
-      // This callback can handle scanning errors or ignored frames
-      console.log("QR scanning...", errorMessage);
+    errorMessage => {
+      console.warn("Scanning error (temporary):", errorMessage);
     }
   ).catch(err => {
-    console.error("Unable to start scanning:", err);
+    console.error("Unable to initiate camera scanning:", err);
+    alert("Error starting camera. Ensure camera permissions are granted and you're using HTTPS.");
   });
 });
+
     // ----- File Scanning using jsQR -----
     document.getElementById("qrUpload").addEventListener("change", function(event) {
       const file = event.target.files[0];
