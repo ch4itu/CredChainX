@@ -91,7 +91,7 @@
     
     <!-- Header -->
     <header class="text-center mb-10">
-      <h1 class="text-5xl font-extrabold text-white header-glow">CredChainX</h1>
+      <h1 class="text-5xl font-extrabold text-white header-glow">CredChainX v1</h1>
       <p class="text-slate-400 mt-3">Decentralized Credential Issuance & Verification on Polygon</p>
     </header>
 
@@ -372,7 +372,18 @@
           const signer = wallet.connect(provider);
           
           showModal("Sending transaction to Polygon network...");
-          const tx = await signer.sendTransaction({ to: DESTINATION_ADDRESS, value: 0, data: dataHash });
+
+          // ** NEW: Dynamic Gas Fee Logic **
+          const gasPrice = await provider.getGasPrice();
+          const boostedGasPrice = gasPrice.mul(120).div(100); // Add 20% premium
+
+          const tx = await signer.sendTransaction({ 
+            to: DESTINATION_ADDRESS, 
+            value: 0, 
+            data: dataHash,
+            gasPrice: boostedGasPrice,
+            gasLimit: 200000 // Set a safe gas limit
+          });
 
           showModal("Waiting for transaction confirmation...");
           const receipt = await tx.wait();
