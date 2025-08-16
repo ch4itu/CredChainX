@@ -52,10 +52,29 @@
     .btn-primary:active {
         transform: translateY(1px);
     }
+    #qr-reader-container {
+        position: relative;
+        overflow: hidden; /* Important for the scan line */
+        border-radius: 0.5rem;
+    }
     #qr-reader {
       border: 2px dashed #475569; /* Slate-600 */
       border-radius: 0.5rem;
       overflow: hidden;
+    }
+    .scan-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(to bottom, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.8));
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
+        animation: scan 2.5s infinite linear;
+    }
+    @keyframes scan {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(100%); }
     }
     .modal-enter {
       animation: fadeIn 0.3s ease-out;
@@ -137,8 +156,8 @@
       </div>
 
       <!-- Verification Section -->
-      <div id="verificationPage" class="p-6 sm:p-8 hidden">
-        <div class="text-center">
+      <div id="verificationPage" class="p-6 sm:p-8">
+        <div id="verificationActions" class="text-center">
             <h3 class="text-lg font-medium leading-6 text-white">Verify a Credential</h3>
             <p class="mt-1 text-sm text-slate-400">Use your camera to scan a QR code or upload an image file.</p>
             <div class="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
@@ -152,7 +171,16 @@
                     <input type="file" id="qrUpload" accept="image/*" class="sr-only">
                 </label>
             </div>
-            <div id="qr-reader" class="w-full max-w-sm mx-auto mt-6 hidden"></div>
+        </div>
+        <div id="scanner-ui" class="w-full max-w-sm mx-auto mt-6 text-center hidden">
+            <p id="scanner-status" class="mb-2 text-indigo-400 font-medium">Scanning...</p>
+            <div id="qr-reader-container">
+                <div id="qr-reader"></div>
+                <div class="scan-line"></div>
+            </div>
+            <button id="cancelScan" class="mt-4 inline-flex items-center justify-center px-5 py-2 border border-slate-600 text-sm font-medium rounded-md text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200">
+                Cancel
+            </button>
         </div>
       </div>
 
@@ -191,6 +219,8 @@
     const tabSlider = document.getElementById('tab-slider');
     const issuancePage = document.getElementById('issuancePage');
     const verificationPage = document.getElementById('verificationPage');
+    const verificationActions = document.getElementById('verificationActions');
+    const scannerUi = document.getElementById('scanner-ui');
     const verificationResultPage = document.getElementById('verificationResultPage');
     const statusModal = document.getElementById('statusModal');
     const modalMessage = document.getElementById('modalMessage');
@@ -224,7 +254,7 @@
 
     tabIssue.addEventListener('click', () => {
       issuancePage.classList.remove('hidden');
-      verificationPage.classList.add('hidden');
+      verificationPage.style.display = 'none';
       verificationResultPage.classList.add('hidden');
       
       tabIssue.classList.add('text-indigo-400');
@@ -234,12 +264,13 @@
 
     tabVerify.addEventListener('click', () => {
       issuancePage.classList.add('hidden');
-      verificationPage.classList.remove('hidden');
+      verificationPage.style.display = 'block';
+      verificationActions.classList.remove('hidden');
+      scannerUi.classList.add('hidden');
       verificationResultPage.classList.add('hidden');
 
       tabVerify.classList.add('text-indigo-400');
       tabIssue.classList.remove('text-indigo-400');
-      document.getElementById('qr-reader').classList.add('hidden');
       updateTabSlider(tabVerify);
     });
 
@@ -445,36 +476,54 @@
         `;
       }
       document.getElementById("credentialDisplay").innerHTML = dataHtml;
-
-      verificationPage.classList.add('hidden');
+      
+      verificationPage.style.display = 'none';
       verificationResultPage.classList.remove('hidden');
     }
 
     // ----- Scanner Control -----
     async function stopScanner() {
         if (html5QrCode && html5QrCode.isScanning) {
-            try { await html5QrCode.stop(); } catch (err) { console.error("Failed to stop scanner gracefully:", err); }
+            try { 
+                await html5QrCode.stop(); 
+                scannerUi.classList.add('hidden');
+                verificationActions.classList.remove('hidden');
+            } catch (err) { 
+                console.error("Failed to stop scanner gracefully:", err); 
+            }
         }
     }
 
     document.getElementById("startScan").addEventListener("click", () => {
-      const qrReaderElement = document.getElementById("qr-reader");
-      qrReaderElement.classList.remove('hidden');
+      verificationActions.classList.add('hidden');
+      scannerUi.classList.remove('hidden');
+      
       if (!html5QrCode) { html5QrCode = new Html5Qrcode("qr-reader"); }
+      
       const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+      
       const qrCodeSuccessCallback = (decodedText) => {
         stopScanner().then(() => {
-            qrReaderElement.classList.add('hidden');
             processDecodedQrCode(decodedText);
         });
       };
-      html5QrCode.start({ facingMode: "environment" }, qrConfig, qrCodeSuccessCallback)
+      
+      const qrCodeErrorCallback = (errorMessage) => {
+        // This callback is called frequently, so we don't do much here.
+        // The visual scan line provides constant feedback.
+        // console.log(errorMessage);
+      };
+
+      html5QrCode.start({ facingMode: "environment" }, qrConfig, qrCodeSuccessCallback, qrCodeErrorCallback)
         .catch(err => {
           console.error("Unable to start camera scanning:", err);
           showModal("Error starting camera. Please grant permissions and use HTTPS.", false);
+          stopScanner(); // Hide scanner UI on error
           setTimeout(hideModal, 4000);
         });
     });
+    
+    document.getElementById("cancelScan").addEventListener("click", stopScanner);
 
     document.getElementById("qrUpload").addEventListener("change", event => {
       const file = event.target.files[0];
