@@ -1,87 +1,248 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>CredChainX - Credential Issuance & Verification</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; }
-    .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    .section { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; }
-    label { display: block; margin-top: 10px; }
-    input, textarea, select, button { width: 100%; padding: 8px; margin-top: 4px; }
-    button { margin-top: 10px; }
-    #qrCode { margin-top: 20px; }
-    /* Hide the verification result page initially */
-    #verificationResultPage { display: none; }
-    /* The live QR scanner container */
-    #qr-reader { width: 300px; margin-top: 20px; display: none; }
-  </style>
-  <!-- Include dependencies -->
+  
+  <!-- Tailwind CSS for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
-  <!-- html5-qrcode library for camera scanning -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <!-- jsQR library for file scanning -->
   <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+
+  <style>
+    /* Custom styles to complement Tailwind */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(120deg, #0f172a, #1e293b); /* Dark Slate Gradient */
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.6); /* Dark Slate Transparent */
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .header-glow {
+        text-shadow: 0 0 15px rgba(99, 102, 241, 0.5), 0 0 30px rgba(99, 102, 241, 0.3);
+    }
+    .tab-slider {
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        background-color: #6366f1; /* Indigo-500 */
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-primary {
+        box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+    }
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.23);
+    }
+    .btn-primary:active {
+        transform: translateY(1px);
+    }
+    #qr-reader {
+      border: 2px dashed #475569; /* Slate-600 */
+      border-radius: 0.5rem;
+      overflow: hidden;
+    }
+    .modal-enter {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
 </head>
-<body>
-  <div class="container">
-    <h1>CredChainX - Credential Issuance & Verification</h1>
+<body class="antialiased text-slate-300">
+
+  <div class="container mx-auto max-w-4xl p-4 sm:p-6 lg:p-8">
     
-    <!-- Issuance Section -->
-    <div id="issuancePage" class="section">
-      <h2>Issue Credential</h2>
-      <form id="issueForm">
-        <label for="mnemonic">Issuer Wallet Mnemonic (Authorized Issuer Only):</label>
-        <!-- Mask the mnemonic on entry -->
-        <input type="password" id="mnemonic" required placeholder="Enter your wallet mnemonic">
-        
-        <label for="name">Name:</label>
-        <input type="text" id="name" required>
-        
-        <label for="dob">Date of Birth:</label>
-        <input type="date" id="dob" required>
-        
-        <label for="semester">Semester:</label>
-        <input type="text" id="semester" required>
-        
-        <label for="subjects">Subjects (comma separated):</label>
-        <input type="text" id="subjects" required>
-        
-        <label for="marks">Marks (comma separated corresponding to subjects):</label>
-        <input type="text" id="marks" required>
-        
-        <label for="photo">Upload Photo:</label>
-        <input type="file" id="photo" accept="image/*" required>
-        
-        <button type="submit">Submit & Issue Credential</button>
-      </form>
-      <div id="issuanceStatus"></div>
-      <div id="qrCode"></div>
+    <!-- Header -->
+    <header class="text-center mb-10">
+      <h1 class="text-5xl font-extrabold text-white header-glow">CredChainX</h1>
+      <p class="text-slate-400 mt-3">Decentralized Credential Issuance & Verification on Polygon</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="glass-card rounded-2xl shadow-lg">
+      
+      <!-- Tab Navigation -->
+      <div class="border-b border-slate-700/80 relative">
+        <nav class="flex" aria-label="Tabs">
+          <button id="tab-issue" class="w-1/2 py-4 px-1 text-center font-medium text-sm text-indigo-400 z-10">
+            Issue Credential
+          </button>
+          <button id="tab-verify" class="w-1/2 py-4 px-1 text-center font-medium text-sm text-slate-400 hover:text-slate-200 z-10">
+            Verify Credential
+          </button>
+        </nav>
+        <div id="tab-slider" class="tab-slider"></div>
+      </div>
+
+      <!-- Issuance Section -->
+      <div id="issuancePage" class="p-6 sm:p-8">
+        <form id="issueForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="md:col-span-2">
+            <label for="mnemonic" class="block text-sm font-medium text-slate-300">Issuer Wallet Mnemonic</label>
+            <input type="password" id="mnemonic" required placeholder="12-word secret phrase (authorized issuer only)" class="mt-1 block w-full px-3 py-2 bg-slate-800/50 border border-slate-600 rounded-md text-sm shadow-sm placeholder-slate-500 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label for="name" class="block text-sm font-medium text-slate-300">Full Name</label>
+            <input type="text" id="name" required class="mt-1 block w-full rounded-md border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-slate-800/50 text-white">
+          </div>
+          <div>
+            <label for="dob" class="block text-sm font-medium text-slate-300">Date of Birth</label>
+            <input type="date" id="dob" required class="mt-1 block w-full rounded-md border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-slate-800/50 text-white">
+          </div>
+          <div>
+            <label for="semester" class="block text-sm font-medium text-slate-300">Semester</label>
+            <input type="text" id="semester" required class="mt-1 block w-full rounded-md border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-slate-800/50 text-white">
+          </div>
+          <div>
+            <label for="photo" class="block text-sm font-medium text-slate-300">Upload Photo</label>
+            <input type="file" id="photo" accept="image/*" required class="mt-1 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-500/10 file:text-indigo-300 hover:file:bg-indigo-500/20 cursor-pointer">
+          </div>
+          <div class="md:col-span-2">
+            <label for="subjects" class="block text-sm font-medium text-slate-300">Subjects (comma-separated)</label>
+            <input type="text" id="subjects" required placeholder="e.g., Mathematics, Physics, Chemistry" class="mt-1 block w-full rounded-md border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-slate-800/50 text-white">
+          </div>
+          <div class="md:col-span-2">
+            <label for="marks" class="block text-sm font-medium text-slate-300">Marks (comma-separated, in order)</label>
+            <input type="text" id="marks" required placeholder="e.g., 95, 88, 92" class="mt-1 block w-full rounded-md border-slate-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-slate-800/50 text-white">
+          </div>
+          <div class="md:col-span-2">
+            <button type="submit" class="w-full inline-flex justify-center py-3 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 btn-primary transition-all duration-200">
+              Submit & Issue Credential
+            </button>
+          </div>
+        </form>
+        <div id="issuanceResult" class="mt-6 hidden text-center">
+            <h3 class="text-lg font-medium leading-6 text-white">Issuance Successful!</h3>
+            <p class="mt-1 text-sm text-slate-400">Scan the QR code below to verify the credential.</p>
+            <div id="qrCode" class="mt-4 flex justify-center p-4 bg-white rounded-lg"></div>
+        </div>
+      </div>
+
+      <!-- Verification Section -->
+      <div id="verificationPage" class="p-6 sm:p-8 hidden">
+        <div class="text-center">
+            <h3 class="text-lg font-medium leading-6 text-white">Verify a Credential</h3>
+            <p class="mt-1 text-sm text-slate-400">Use your camera to scan a QR code or upload an image file.</p>
+            <div class="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
+                <button id="startScan" class="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 btn-primary transition-all duration-200">
+                    <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.776 48.776 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" /></svg>
+                    Scan with Camera
+                </button>
+                <label for="qrUpload" class="cursor-pointer inline-flex items-center justify-center px-5 py-3 border border-slate-600 text-base font-medium rounded-md text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200">
+                    <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                    Upload QR Image
+                    <input type="file" id="qrUpload" accept="image/*" class="sr-only">
+                </label>
+            </div>
+            <div id="qr-reader" class="w-full max-w-sm mx-auto mt-6 hidden"></div>
+        </div>
+      </div>
+
+      <!-- Verification Result Page -->
+      <div id="verificationResultPage" class="p-6 sm:p-8 hidden">
+        <h3 class="text-xl font-semibold text-center text-white mb-4">Verification Result</h3>
+        <div id="verificationMessage" class="p-4 rounded-lg mb-6 text-center font-medium flex items-center justify-center"></div>
+        <div id="credentialDisplay" class="border-t border-b border-slate-700 py-6">
+          <!-- Credential data will be injected here -->
+        </div>
+        <div class="mt-6 text-center">
+          <button id="backToScan" class="inline-flex items-center justify-center px-5 py-3 border border-slate-600 text-base font-medium rounded-md text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200">
+            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+            Verify Another
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Global Status Modal -->
+    <div id="statusModal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
+      <div class="bg-slate-800 rounded-lg p-8 shadow-xl max-w-sm w-full text-center modal-enter border border-slate-700">
+        <div id="modalSpinner" class="flex justify-center items-center mb-4">
+            <svg class="animate-spin h-8 w-8 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        </div>
+        <p id="modalMessage" class="text-slate-300 font-medium"></p>
+      </div>
     </div>
-    
-    <!-- Verification Scanning Section -->
-    <div id="verificationSection" class="section">
-      <h2>Verify Credential</h2>
-      <button id="startScan">Start Camera QR Code Scan</button>
-      <!-- Container for the live QR scanner -->
-      <div id="qr-reader"></div>
-      <br>
-      <label for="qrUpload">Or upload a QR Code image:</label>
-      <input type="file" id="qrUpload" accept="image/*">
-    </div>
-    
-    <!-- Verification Result Page (initially hidden) -->
-    <div id="verificationResultPage" class="section">
-      <h2>Verification Result</h2>
-      <div id="credentialDisplay"></div>
-      <div id="verificationMessage" style="font-weight: bold; margin-top: 10px;"></div>
-      <button id="backToScan">Back to Scan</button>
-    </div>
+
   </div>
-  
+
   <script>
+    // ----- DOM Element References -----
+    const tabIssue = document.getElementById('tab-issue');
+    const tabVerify = document.getElementById('tab-verify');
+    const tabSlider = document.getElementById('tab-slider');
+    const issuancePage = document.getElementById('issuancePage');
+    const verificationPage = document.getElementById('verificationPage');
+    const verificationResultPage = document.getElementById('verificationResultPage');
+    const statusModal = document.getElementById('statusModal');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalSpinner = document.getElementById('modalSpinner');
+
+    // ----- UI Interaction Logic -----
+    function showModal(message, showSpinner = true) {
+      modalMessage.textContent = message;
+      modalSpinner.style.display = showSpinner ? 'flex' : 'none';
+      statusModal.classList.remove('hidden');
+    }
+
+    function hideModal() {
+      statusModal.classList.add('hidden');
+    }
+
+    function updateTabSlider(activeTab) {
+        const tabWidth = activeTab.offsetWidth;
+        const tabOffset = activeTab.offsetLeft;
+        tabSlider.style.width = `${tabWidth}px`;
+        tabSlider.style.transform = `translateX(${tabOffset}px)`;
+    }
+
+    // Initialize slider on page load
+    window.addEventListener('load', () => updateTabSlider(tabIssue));
+    // Update slider on window resize
+    window.addEventListener('resize', () => {
+        const activeTab = document.querySelector('.text-indigo-400');
+        if (activeTab) updateTabSlider(activeTab);
+    });
+
+    tabIssue.addEventListener('click', () => {
+      issuancePage.classList.remove('hidden');
+      verificationPage.classList.add('hidden');
+      verificationResultPage.classList.add('hidden');
+      
+      tabIssue.classList.add('text-indigo-400');
+      tabVerify.classList.remove('text-indigo-400');
+      updateTabSlider(tabIssue);
+    });
+
+    tabVerify.addEventListener('click', () => {
+      issuancePage.classList.add('hidden');
+      verificationPage.classList.remove('hidden');
+      verificationResultPage.classList.add('hidden');
+
+      tabVerify.classList.add('text-indigo-400');
+      tabIssue.classList.remove('text-indigo-400');
+      document.getElementById('qr-reader').classList.add('hidden');
+      updateTabSlider(tabVerify);
+    });
+
     // ----- Utility Functions -----
     async function computeSHA256(message) {
       const encoder = new TextEncoder();
@@ -93,24 +254,17 @@
 
     function compressImage(file, targetKB, callback) {
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = e => {
         const img = new Image();
-        img.onload = function() {
+        img.onload = () => {
           const canvas = document.createElement("canvas");
           const ctx = canvas.getContext("2d");
-          const maxDim = 100; // Adjust as needed.
-          let width = img.width;
-          let height = img.height;
+          const maxDim = 150;
+          let { width, height } = img;
           if (width > height) {
-            if (width > maxDim) {
-              height = Math.round(height * (maxDim / width));
-              width = maxDim;
-            }
+            if (width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
           } else {
-            if (height > maxDim) {
-              width = Math.round(width * (maxDim / height));
-              height = maxDim;
-            }
+            if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
           }
           canvas.width = width;
           canvas.height = height;
@@ -118,13 +272,12 @@
           let quality = 0.9;
           const minQuality = 0.1;
           function tryCompress() {
-            canvas.toBlob(function(blob) {
+            canvas.toBlob(blob => {
               if (!blob) { callback(null); return; }
               const sizeKB = blob.size / 1024;
-              console.log(`Compressed size: ${sizeKB.toFixed(2)} KB at quality ${quality}`);
               if (sizeKB <= targetKB || quality <= minQuality) {
                 const reader2 = new FileReader();
-                reader2.onloadend = function() { callback(reader2.result); };
+                reader2.onloadend = () => callback(reader2.result);
                 reader2.readAsDataURL(blob);
               } else {
                 quality -= 0.1;
@@ -139,211 +292,197 @@
       reader.readAsDataURL(file);
     }
 
-    // Mask the mnemonic by showing only the first and last character of each word.
-    function maskMnemonic(mnemonic) {
-      return mnemonic.split(" ").map(word => {
-        if (word.length > 2) {
-          return word[0] + "*".repeat(word.length - 2) + word[word.length - 1];
-        }
-        return word;
-      }).join(" ");
-    }
-
     // ----- Configuration -----
-    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD"; // Example destination address
-    const rpcEndpoint = "https://polygon-rpc.com"; // Polygon RPC endpoint
+    const DESTINATION_ADDRESS = "0x000000000000000000000000000000000000dEaD";
+    const rpcEndpoint = "https://polygon-rpc.com";
+
+    // ----- State Management for Scanner -----
+    let html5QrCode;
 
     // ----- Issuance Logic -----
     document.getElementById("issueForm").addEventListener("submit", async function(event) {
       event.preventDefault();
-      document.getElementById("issuanceStatus").innerText = "Processing...";
+      showModal("Processing credential data...");
 
-      // Collect form data.
       const mnemonic = document.getElementById("mnemonic").value.trim();
-      //console.log("Masked mnemonic:", maskMnemonic(mnemonic));
       const name = document.getElementById("name").value.trim();
       const dob = document.getElementById("dob").value;
       const semester = document.getElementById("semester").value.trim();
-      const subjects = document.getElementById("subjects").value.trim().split(",");
-      const marks = document.getElementById("marks").value.trim().split(",");
+      const subjects = document.getElementById("subjects").value.trim().split(",").map(s => s.trim());
+      const marks = document.getElementById("marks").value.trim().split(",").map(m => m.trim());
       const photoFile = document.getElementById("photo").files[0];
+
       if (!photoFile) {
-        document.getElementById("issuanceStatus").innerText = "Please upload a photo.";
+        showModal("Please upload a photo.", false);
+        setTimeout(hideModal, 2000);
         return;
       }
+      if (subjects.length !== marks.length) {
+          showModal("Error: The number of subjects must match the number of marks.", false);
+          setTimeout(hideModal, 3000);
+          return;
+      }
 
-      compressImage(photoFile, 2, async function(photoBase64) {
+      compressImage(photoFile, 2.5, async function(photoBase64) {
         if (!photoBase64) {
-          document.getElementById("issuanceStatus").innerText = "Error compressing image.";
+          showModal("Error compressing image.", false);
+          setTimeout(hideModal, 2000);
           return;
         }
 
         const dataObject = { name, dob, semester, subjects, marks, photo: photoBase64 };
         const jsonData = JSON.stringify(dataObject);
         const dataHash = await computeSHA256(jsonData);
-        console.log("Computed Data Hash:", dataHash);
-
+        
         try {
           const wallet = ethers.Wallet.fromMnemonic(mnemonic);
           const authorizedAddress = wallet.address;
-          console.log("Authorized Address:", authorizedAddress);
           const provider = new ethers.providers.JsonRpcProvider(rpcEndpoint);
           const signer = wallet.connect(provider);
-          const txObj = { to: DESTINATION_ADDRESS, value: 0, data: dataHash, from: authorizedAddress };
+          
+          showModal("Sending transaction to Polygon network...");
+          const tx = await signer.sendTransaction({ to: DESTINATION_ADDRESS, value: 0, data: dataHash });
 
-          let estimatedGas;
-          try {
-            estimatedGas = await provider.estimateGas(txObj);
-            console.log("Estimated Gas:", estimatedGas.toString());
-          } catch (gasError) {
-            console.warn("Gas estimation failed, using fallback gas limit. Error:", gasError.message);
-            estimatedGas = ethers.BigNumber.from("200000");
-          }
-
-          const currentGasPrice = await provider.getGasPrice();
-          const boostedGasPrice = currentGasPrice.mul(120).div(100);
-          console.log("Boosted Gas Price:", boostedGasPrice.toString());
-
-          const tx = await signer.sendTransaction({
-            ...txObj,
-            type: 0,
-            gasLimit: estimatedGas,
-            gasPrice: boostedGasPrice
-          });
-
-          document.getElementById("issuanceStatus").innerText = "Transaction sent. Waiting for confirmation...";
-          console.log("Transaction sent:", tx.hash);
+          showModal("Waiting for transaction confirmation...");
           const receipt = await tx.wait();
-          console.log("Transaction confirmed:", receipt.transactionHash);
-          document.getElementById("issuanceStatus").innerText = "Credential issued. Transaction ID: " + receipt.transactionHash;
+          
+          showModal("Credential Issued Successfully!", false);
 
-          // Generate a QR code with the credential data, issuer address, and transaction ID.
           const qrData = { issuer: authorizedAddress, data: dataObject, txId: receipt.transactionHash };
           const qr = new QRious({
             element: document.createElement("canvas"),
             value: JSON.stringify(qrData),
-            size: 400,
-            level: "L",
-            padding: 10
+            size: 256,
+            level: "H"
           });
           const qrDiv = document.getElementById("qrCode");
           qrDiv.innerHTML = "";
           qrDiv.appendChild(qr.element);
+          document.getElementById('issuanceResult').classList.remove('hidden');
+          document.getElementById('issueForm').reset();
+          setTimeout(hideModal, 2000);
         } catch (error) {
           console.error("Error during issuance:", error);
-          document.getElementById("issuanceStatus").innerText = "Error: " + error.message;
+          showModal("Error: " + error.message, false);
+          setTimeout(hideModal, 5000);
         }
       });
     });
 
     // ----- Verification Logic -----
     async function processDecodedQrCode(decodedText) {
+      showModal("Verifying credential on the blockchain...");
       try {
         const qrData = JSON.parse(decodedText);
+        if (!qrData.data || !qrData.txId || !qrData.issuer) {
+             throw new Error("Invalid QR code structure.");
+        }
+        
         const scannedData = JSON.stringify(qrData.data);
         const scannedTxId = qrData.txId;
         const expectedIssuer = qrData.issuer;
 
         const computedHash = await computeSHA256(scannedData);
-        console.log("Computed Hash from Scanned Data:", computedHash);
-
         const provider = new ethers.providers.JsonRpcProvider(rpcEndpoint);
         const tx = await provider.getTransaction(scannedTxId);
+        
         if (!tx) {
-          showVerificationResult("Transaction not found on Polygon PoS Chain.", null);
+          showVerificationResult("Transaction not found on Polygon PoS Chain.", null, null, null, false);
           return;
         }
-        console.log("Retrieved Transaction:", tx);
+
         const block = await provider.getBlock(tx.blockNumber);
         const txDateTime = new Date(block.timestamp * 1000).toLocaleString();
+        let verificationMessage, isSuccess;
 
-        let verificationMessage = "";
         if (tx.from.toLowerCase() !== expectedIssuer.toLowerCase()) {
-          verificationMessage = "Verification Failed: Transaction not from the expected issuer.";
+          verificationMessage = "Verification Failed: Transaction was not sent by the expected issuer.";
+          isSuccess = false;
         } else if (tx.data.toLowerCase() !== computedHash.toLowerCase()) {
-          verificationMessage = "Verification Failed: Data mismatch.";
+          verificationMessage = "Verification Failed: The data hash does not match the on-chain hash. The credential has been tampered with.";
+          isSuccess = false;
         } else {
-          verificationMessage = "Verification Successful: Data is authentic.";
+          verificationMessage = "Verification Successful: The credential data is authentic and matches the blockchain record.";
+          isSuccess = true;
         }
-        showVerificationResult(verificationMessage, qrData.data, scannedTxId, txDateTime);
+        showVerificationResult(verificationMessage, qrData.data, scannedTxId, txDateTime, isSuccess);
       } catch (error) {
         console.error("Error during verification:", error);
-        showVerificationResult("Error: " + error.message, null);
+        showVerificationResult("Error: " + error.message, null, null, null, false);
+      } finally {
+        hideModal();
       }
     }
 
-    function showVerificationResult(message, credentialData, txId, txDateTime) {
+    function showVerificationResult(message, data, txId, txDateTime, isSuccess) {
+      const msgElem = document.getElementById("verificationMessage");
+      let iconHtml = '';
+      msgElem.className = 'p-4 rounded-lg mb-6 text-center font-medium flex items-center justify-center ';
+      
+      if (isSuccess) {
+        msgElem.classList.add('bg-green-500/20', 'text-green-300');
+        iconHtml = `<svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+      } else {
+        msgElem.classList.add('bg-red-500/20', 'text-red-300');
+        iconHtml = `<svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+      }
+      msgElem.innerHTML = iconHtml + `<span>${message}</span>`;
+
       let dataHtml = "";
-      if (credentialData) {
-        dataHtml += "<h3>Credential Data</h3>";
-        dataHtml += `<p><strong>Name:</strong> ${credentialData.name}</p>`;
-        dataHtml += `<p><strong>Date of Birth:</strong> ${credentialData.dob}</p>`;
-        dataHtml += `<p><strong>Semester:</strong> ${credentialData.semester}</p>`;
-        dataHtml += `<p><strong>Subjects:</strong> ${credentialData.subjects.join(", ")}</p>`;
-        dataHtml += `<p><strong>Marks:</strong> ${credentialData.marks.join(", ")}</p>`;
-        dataHtml += `<p><strong>Photo:</strong><br><img src="${credentialData.photo}" alt="Credential Photo" style="max-width:300px;"></p>`;
-        if (txId && txDateTime) {
-          dataHtml += `<p><strong>Transaction:</strong> <a href="https://polygonscan.com/tx/${txId}" target="_blank">${txId}</a></p>`;
-          dataHtml += `<p><strong>Transaction Date & Time:</strong> ${txDateTime}</p>`;
-        }
+      if (data) {
+        dataHtml = `
+          <div class="space-y-4">
+            <div class="flex justify-center"><img src="${data.photo}" alt="Credential Photo" class="rounded-full h-24 w-24 object-cover border-4 border-slate-600 shadow-md"></div>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+              <div class="sm:col-span-2"><dt class="text-sm font-medium text-slate-400">Name</dt><dd class="mt-1 text-lg text-white font-semibold">${data.name}</dd></div>
+              <div><dt class="text-sm font-medium text-slate-400">Date of Birth</dt><dd class="mt-1 text-slate-200">${data.dob}</dd></div>
+              <div><dt class="text-sm font-medium text-slate-400">Semester</dt><dd class="mt-1 text-slate-200">${data.semester}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-sm font-medium text-slate-400">Subjects</dt><dd class="mt-1 text-slate-200">${data.subjects.join(", ")}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-sm font-medium text-slate-400">Marks</dt><dd class="mt-1 text-slate-200">${data.marks.join(", ")}</dd></div>
+            </dl>
+            ${txId ? `<div class="border-t border-slate-700 pt-4 mt-4"><dt class="text-sm font-medium text-slate-400">Blockchain Transaction</dt><dd class="mt-1 text-indigo-400 text-xs break-all"><a href="https://polygonscan.com/tx/${txId}" target="_blank" class="hover:underline">${txId}</a></dd><dd class="mt-1 text-xs text-slate-500">${txDateTime}</dd></div>` : ''}
+          </div>
+        `;
       }
       document.getElementById("credentialDisplay").innerHTML = dataHtml;
 
-      const verificationMessageElem = document.getElementById("verificationMessage");
-      verificationMessageElem.innerText = message;
-      if (message.toLowerCase().includes("successful")) {
-        verificationMessageElem.style.color = "green";
-      } else if (message.toLowerCase().includes("failed")) {
-        verificationMessageElem.style.color = "red";
-      } else {
-        verificationMessageElem.style.color = "blue";
-      }
-      document.getElementById("verificationSection").style.display = "none";
-      document.getElementById("verificationResultPage").style.display = "block";
+      verificationPage.classList.add('hidden');
+      verificationResultPage.classList.remove('hidden');
     }
 
-// ----- QR Code Scanning with html5-qrcode (Camera) -----
-  document.getElementById("startScan").addEventListener("click", function() {
-  const qrReader = document.getElementById("qr-reader");
-  qrReader.style.display = "block";
-
-  const html5QrCode = new Html5Qrcode("qr-reader");
-
-  const qrConfig = {
-    fps: 10,
-    qrbox: { width: 250, height: 250 },
-    aspectRatio: 1.0
-  };
-
-  html5QrCode.start(
-    { facingMode: "environment" }, // Explicitly requests the rear camera
-    qrConfig,
-    (decodedText, decodedResult) => {
-      console.log("QR Code detected:", decodedText);
-      html5QrCode.stop().then(() => {
-        qrReader.style.display = "none";
-        processDecodedQrCode(decodedText);
-      }).catch(err => {
-        console.error("Failed to stop scanning:", err);
-      });
-    },
-    errorMessage => {
-      console.warn("Scanning error (temporary):", errorMessage);
+    // ----- Scanner Control -----
+    async function stopScanner() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            try { await html5QrCode.stop(); } catch (err) { console.error("Failed to stop scanner gracefully:", err); }
+        }
     }
-  ).catch(err => {
-    console.error("Unable to initiate camera scanning:", err);
-    alert("Error starting camera. Ensure camera permissions are granted and you're using HTTPS.");
-  });
-});
 
-    // ----- File Scanning using jsQR -----
-    document.getElementById("qrUpload").addEventListener("change", function(event) {
+    document.getElementById("startScan").addEventListener("click", () => {
+      const qrReaderElement = document.getElementById("qr-reader");
+      qrReaderElement.classList.remove('hidden');
+      if (!html5QrCode) { html5QrCode = new Html5Qrcode("qr-reader"); }
+      const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+      const qrCodeSuccessCallback = (decodedText) => {
+        stopScanner().then(() => {
+            qrReaderElement.classList.add('hidden');
+            processDecodedQrCode(decodedText);
+        });
+      };
+      html5QrCode.start({ facingMode: "environment" }, qrConfig, qrCodeSuccessCallback)
+        .catch(err => {
+          console.error("Unable to start camera scanning:", err);
+          showModal("Error starting camera. Please grant permissions and use HTTPS.", false);
+          setTimeout(hideModal, 4000);
+        });
+    });
+
+    document.getElementById("qrUpload").addEventListener("change", event => {
       const file = event.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = e => {
         const img = new Image();
-        img.onload = function() {
+        img.onload = () => {
           const canvas = document.createElement("canvas");
           canvas.width = img.width;
           canvas.height = img.height;
@@ -352,10 +491,9 @@
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, canvas.width, canvas.height);
           if (code) {
-            console.log("File scan result:", code.data);
             processDecodedQrCode(code.data);
           } else {
-            console.error("QR code not detected in the uploaded image.");
+            showVerificationResult("Error: QR code not detected in the uploaded image.", null, null, null, false);
           }
         };
         img.src = e.target.result;
@@ -363,10 +501,9 @@
       reader.readAsDataURL(file);
     });
 
-    // "Back to Scan" button functionality.
-    document.getElementById("backToScan").addEventListener("click", function() {
-      document.getElementById("verificationResultPage").style.display = "none";
-      document.getElementById("verificationSection").style.display = "block";
+    document.getElementById("backToScan").addEventListener("click", () => {
+      stopScanner();
+      tabVerify.click();
     });
   </script>
 </body>
